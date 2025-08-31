@@ -8,6 +8,7 @@ import (
 
 	"github.com/MeYo0o/blog_aggregator/internal/config"
 	"github.com/MeYo0o/blog_aggregator/internal/database"
+	"github.com/MeYo0o/blog_aggregator/internal/rss"
 	st "github.com/MeYo0o/blog_aggregator/internal/state"
 	"github.com/google/uuid"
 )
@@ -73,7 +74,6 @@ func HandleResetUsers(s *st.State, cmd Command) error {
 	case 2:
 		// Args[0] is the program name, we don't need that but it exists no matter what.
 		// Args[1] is the command name, i.e: reset
-		//!!!!!!
 		if err := s.DB.ResetUsers(context.Background()); err != nil {
 			return fmt.Errorf("reset Users Failed: %w", err)
 		}
@@ -94,7 +94,6 @@ func HandleUsers(s *st.State, cmd Command) error {
 	case 2:
 		// Args[0] is the program name, we don't need that but it exists no matter what.
 		// Args[1] is the command name, i.e: users
-		//!!!!!!
 		users, err = s.DB.GetUsers(context.Background())
 		if err != nil {
 			return errors.New("couldn't retrieve users from DB")
@@ -112,6 +111,29 @@ func HandleUsers(s *st.State, cmd Command) error {
 
 		fmt.Printf("* %s\n", user.Name)
 	}
+
+	return nil
+}
+
+func HandleAge(s *st.State, cmd Command) error {
+	var rssFeed *rss.RSSFeed
+	var err error
+
+	switch len(cmd.Args) {
+	case 2:
+		// Args[0] is the program name, we don't need that but it exists no matter what.
+		// Args[1] is the command name, i.e: agg
+		url := "https://www.wagslane.dev/index.xml"
+		rssFeed, err = rss.FetchFeed(context.Background(), url)
+		if err != nil {
+			return fmt.Errorf("error when fetching RSS: %w", err)
+		}
+
+	default:
+		return errors.New("you don't need any arguments, just the age command will do")
+	}
+
+	fmt.Println(rssFeed)
 
 	return nil
 }
