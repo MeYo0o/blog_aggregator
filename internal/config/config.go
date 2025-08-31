@@ -23,7 +23,7 @@ func Read() Config {
 
 	jsonCfg, err := os.ReadFile(configFilePath)
 	if err != nil {
-		log.Fatal("couldn't read the config file")
+		log.Fatal("couldn't read the config file at ~/.gatorconfig.json")
 	}
 
 	var config Config

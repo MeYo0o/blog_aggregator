@@ -1,15 +1,27 @@
 package main
 
 import (
+	"database/sql"
 	"log"
 	"os"
 
 	"github.com/MeYo0o/blog_aggregator/internal/config"
+	"github.com/MeYo0o/blog_aggregator/internal/database"
+	_ "github.com/lib/pq"
 )
 
 func main() {
 	cfg := config.Read()
+
+	db, err := sql.Open("postgres", cfg.DBUrl)
+	if err != nil {
+		log.Fatal("couldn't connect to database")
+	}
+
+	dbQueries := database.New(db)
+
 	state := config.State{
+		DB:  dbQueries,
 		Cfg: &cfg,
 	}
 
@@ -18,6 +30,7 @@ func main() {
 
 	//* Register Commands & Handlers
 	commands.Register("login", config.HandlerLogin)
+	commands.Register("register", config.HandlerRegister)
 
 	//* Run Commands
 	if len(os.Args) == 1 {
