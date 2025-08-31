@@ -1,4 +1,4 @@
-package config
+package commands
 
 import (
 	"context"
@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/MeYo0o/blog_aggregator/internal/config"
 	"github.com/MeYo0o/blog_aggregator/internal/database"
+	st "github.com/MeYo0o/blog_aggregator/internal/state"
 	"github.com/google/uuid"
 )
 
-func HandlerLogin(s *State, cmd Command) error {
+func HandlerLogin(s *st.State, cmd Command) error {
 	var err error
 	switch len(cmd.Args) {
 	case 3:
@@ -23,7 +25,7 @@ func HandlerLogin(s *State, cmd Command) error {
 			return errors.New("user doesn't exist in DB")
 		} else {
 			s.Cfg.CurrentUsername = loginUsername
-			SetUser(s.Cfg.CurrentUsername)
+			config.SetUser(s.Cfg.CurrentUsername)
 		}
 	default:
 		return errors.New("you need to pass the username only after login")
@@ -34,7 +36,7 @@ func HandlerLogin(s *State, cmd Command) error {
 	return nil
 }
 
-func HandlerRegister(s *State, cmd Command) error {
+func HandlerRegister(s *st.State, cmd Command) error {
 	var user database.User
 	var err error
 
@@ -54,7 +56,7 @@ func HandlerRegister(s *State, cmd Command) error {
 			return errors.New("name already exists")
 		} else {
 			s.Cfg.CurrentUsername = registrationName
-			SetUser(registrationName)
+			config.SetUser(registrationName)
 		}
 	default:
 		return errors.New("you need to pass the username only after register")
@@ -66,7 +68,7 @@ func HandlerRegister(s *State, cmd Command) error {
 	return nil
 }
 
-func HandleResetUsers(s *State, cmd Command) error {
+func HandleResetUsers(s *st.State, cmd Command) error {
 	switch len(cmd.Args) {
 	case 2:
 		// Args[0] is the program name, we don't need that but it exists no matter what.
@@ -84,7 +86,7 @@ func HandleResetUsers(s *State, cmd Command) error {
 	return nil
 }
 
-func HandleUsers(s *State, cmd Command) error {
+func HandleUsers(s *st.State, cmd Command) error {
 	var users []database.User
 	var err error
 

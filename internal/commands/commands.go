@@ -1,6 +1,10 @@
-package config
+package commands
 
-import "fmt"
+import (
+	"fmt"
+
+	st "github.com/MeYo0o/blog_aggregator/internal/state"
+)
 
 type Command struct {
 	Name string
@@ -8,10 +12,10 @@ type Command struct {
 }
 
 type Commands struct {
-	Cmds map[string]func(*State, Command) error
+	Cmds map[string]func(*st.State, Command) error
 }
 
-func (c *Commands) Run(s *State, cmd Command) error {
+func (c *Commands) Run(s *st.State, cmd Command) error {
 	if command, ok := c.Cmds[cmd.Name]; ok {
 		if err := command(s, cmd); err != nil {
 			return err
@@ -23,6 +27,6 @@ func (c *Commands) Run(s *State, cmd Command) error {
 	return nil
 }
 
-func (c *Commands) Register(name string, f func(*State, Command) error) {
+func (c *Commands) Register(name string, f func(*st.State, Command) error) {
 	c.Cmds[name] = f
 }
