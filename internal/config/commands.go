@@ -1,5 +1,7 @@
 package config
 
+import "fmt"
+
 type Command struct {
 	Name string
 	Args []string
@@ -14,6 +16,8 @@ func (c *Commands) Run(s *State, cmd Command) error {
 		if err := command(s, cmd); err != nil {
 			return err
 		}
+	} else {
+		return fmt.Errorf("command: %s not found", cmd.Name)
 	}
 
 	return nil

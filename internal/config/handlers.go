@@ -65,3 +65,21 @@ func HandlerRegister(s *State, cmd Command) error {
 
 	return nil
 }
+
+func HandleResetUsers(s *State, cmd Command) error {
+	switch len(cmd.Args) {
+	case 2:
+		// Args[0] is the program name, we don't need that but it exists no matter what.
+		// Args[1] is the command name, i.e: reset
+		//!!!!!!
+		if err := s.DB.ResetUsers(context.Background()); err != nil {
+			return fmt.Errorf("reset Users Failed: %w", err)
+		}
+	default:
+		return errors.New("you don't need any arguments, just the reset command will do")
+	}
+
+	fmt.Println("All users have been deleted successfully!")
+
+	return nil
+}
