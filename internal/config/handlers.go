@@ -83,3 +83,33 @@ func HandleResetUsers(s *State, cmd Command) error {
 
 	return nil
 }
+
+func HandleUsers(s *State, cmd Command) error {
+	var users []database.User
+	var err error
+
+	switch len(cmd.Args) {
+	case 2:
+		// Args[0] is the program name, we don't need that but it exists no matter what.
+		// Args[1] is the command name, i.e: users
+		//!!!!!!
+		users, err = s.DB.GetUsers(context.Background())
+		if err != nil {
+			return errors.New("couldn't retrieve users from DB")
+		}
+
+	default:
+		return errors.New("you don't need any arguments, just the users command will do")
+	}
+
+	for _, user := range users {
+		if user.Name == s.Cfg.CurrentUsername {
+			fmt.Printf("* %s (current)\n", user.Name)
+			continue
+		}
+
+		fmt.Printf("* %s\n", user.Name)
+	}
+
+	return nil
+}

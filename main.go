@@ -32,6 +32,7 @@ func main() {
 	commands.Register("login", config.HandlerLogin)
 	commands.Register("register", config.HandlerRegister)
 	commands.Register("reset", config.HandleResetUsers)
+	commands.Register("users", config.HandleUsers)
 
 	//* Run Commands
 	if len(os.Args) == 1 {
