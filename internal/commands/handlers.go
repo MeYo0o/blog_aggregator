@@ -157,7 +157,7 @@ func HandleAddFeed(s *st.State, cmd Command) error {
 		feedUrl = cmd.Args[3]
 
 		// add the feed mapped to the user
-		s.DB.CreateFeed(context.Background(), database.CreateFeedParams{
+		feed, err := s.DB.CreateFeed(context.Background(), database.CreateFeedParams{
 			ID:        uuid.New(),
 			Name:      feedName,
 			Url:       feedUrl,
@@ -165,6 +165,21 @@ func HandleAddFeed(s *st.State, cmd Command) error {
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		})
+		if err != nil {
+			return fmt.Errorf("couldn't create a feed for the current user: %w", err)
+		}
+
+		// follow that feed
+		_, err = s.DB.CreateFeedFollow(context.Background(), database.CreateFeedFollowParams{
+			ID:        uuid.New(),
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+			UserID:    user.ID,
+			FeedID:    feed.ID,
+		})
+		if err != nil {
+			return fmt.Errorf("couldn't follow the feed that was just created for the current user: %w", err)
+		}
 
 	default:
 		return errors.New("you need to provide 2 more arguments: feedName & feedUrl")
@@ -200,6 +215,98 @@ func HandleGetFeeds(s *st.State, cmd Command) error {
 		fmt.Printf("- '%s'\n", feed.Name)
 		fmt.Printf("- \"%s\"\n", feed.Url)
 		fmt.Printf("* %s\n", user.Name)
+	}
+
+	return nil
+}
+
+func HandleFollowFeed(s *st.State, cmd Command) error {
+	var feedsFollow []database.FeedFollow
+	var err error
+
+	currentUser, err := s.DB.GetUser(context.Background(), s.Cfg.CurrentUsername)
+	if err != nil {
+		return fmt.Errorf("couldn't retrieve user data: %w", err)
+	}
+
+	switch len(cmd.Args) {
+	case 3:
+		// Args[0] is the program name, we don't need that but it exists no matter what.
+		// Args[1] is the command name, i.e: follow feed
+		// Args[2] is the command name, i.e: feedUrl
+		feedUrl := cmd.Args[2]
+
+		currentFeed, err := s.DB.GetFeedByUrl(context.Background(), feedUrl)
+		if err != nil {
+			return fmt.Errorf("couldn't find a feed with that Url to follow: %w", err)
+		}
+
+		feedsFollow, err = s.DB.CreateFeedFollow(context.Background(), database.CreateFeedFollowParams{
+			ID:        uuid.New(),
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+			UserID:    currentUser.ID,
+			FeedID:    currentFeed.ID,
+		})
+		if err != nil {
+			return fmt.Errorf("couldn't follow the provided feedUrl: %w", err)
+		}
+
+	default:
+		return errors.New("you need to provide 1 more argument: feedUrl")
+	}
+
+	for _, feedFollow := range feedsFollow {
+		user, err := s.DB.GetUserByID(context.Background(), feedFollow.UserID)
+		if err != nil {
+			return fmt.Errorf("couldn't get feedFollow linked User: %w", err)
+		}
+		feed, err := s.DB.GetFeedByID(context.Background(), feedFollow.FeedID)
+		if err != nil {
+			return fmt.Errorf("couldn't get feedFollow linked Feed: %w", err)
+		}
+
+		fmt.Println(user.Name)
+		fmt.Println(feed.Name)
+	}
+
+	return nil
+}
+
+func HandleFollowing(s *st.State, cmd Command) error {
+	var feedsFollow []database.FeedFollow
+	var err error
+
+	currentUser, err := s.DB.GetUser(context.Background(), s.Cfg.CurrentUsername)
+	if err != nil {
+		return fmt.Errorf("couldn't retrieve user data: %w", err)
+	}
+
+	switch len(cmd.Args) {
+	case 2:
+		// Args[0] is the program name, we don't need that but it exists no matter what.
+		// Args[1] is the command name, i.e: following
+		feedsFollow, err = s.DB.GetFeedFollowsForUser(context.Background(), currentUser.ID)
+		if err != nil {
+			return fmt.Errorf("couldn't get feed follows for the current user: %w", err)
+		}
+
+	default:
+		return errors.New("you don't need any arguments, just the following command will do")
+	}
+
+	for _, feedFollow := range feedsFollow {
+		user, err := s.DB.GetUserByID(context.Background(), feedFollow.UserID)
+		if err != nil {
+			return fmt.Errorf("couldn't get feedFollow linked User: %w", err)
+		}
+		feed, err := s.DB.GetFeedByID(context.Background(), feedFollow.FeedID)
+		if err != nil {
+			return fmt.Errorf("couldn't get feedFollow linked Feed: %w", err)
+		}
+
+		fmt.Println(user.Name)
+		fmt.Println(feed.Name)
 	}
 
 	return nil

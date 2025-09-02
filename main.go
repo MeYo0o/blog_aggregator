@@ -38,6 +38,8 @@ func main() {
 	commands.Register("agg", cmds.HandleAgg)
 	commands.Register("addfeed", cmds.HandleAddFeed)
 	commands.Register("feeds", cmds.HandleGetFeeds)
+	commands.Register("follow", cmds.HandleFollowFeed)
+	commands.Register("following", cmds.HandleFollowing)
 
 	//* Run Commands
 	if len(os.Args) == 1 {
