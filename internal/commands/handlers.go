@@ -115,7 +115,7 @@ func HandleGetUsers(s *st.State, cmd Command) error {
 	return nil
 }
 
-func HandleAge(s *st.State, cmd Command) error {
+func HandleAgg(s *st.State, cmd Command) error {
 	var rssFeed *rss.RSSFeed
 	var err error
 
@@ -168,6 +168,38 @@ func HandleAddFeed(s *st.State, cmd Command) error {
 
 	default:
 		return errors.New("you need to provide 2 more arguments: feedName & feedUrl")
+	}
+
+	return nil
+}
+
+func HandleGetFeeds(s *st.State, cmd Command) error {
+	var feeds []database.Feed
+	var err error
+
+	switch len(cmd.Args) {
+	case 2:
+		// Args[0] is the program name, we don't need that but it exists no matter what.
+		// Args[1] is the command name, i.e: users
+		feeds, err = s.DB.GetFeeds(context.Background())
+		if err != nil {
+			return errors.New("couldn't retrieve feeds from DB")
+		}
+
+	default:
+		return errors.New("you don't need any arguments, just the feeds command will do")
+	}
+
+	for _, feed := range feeds {
+
+		user, err := s.DB.GetUserByID(context.Background(), feed.UserID)
+		if err != nil {
+			return fmt.Errorf("couldn't get a feed's attached username: %w", err)
+		}
+
+		fmt.Printf("- '%s'\n", feed.Name)
+		fmt.Printf("- \"%s\"\n", feed.Url)
+		fmt.Printf("* %s\n", user.Name)
 	}
 
 	return nil
