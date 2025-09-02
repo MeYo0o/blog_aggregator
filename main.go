@@ -43,6 +43,7 @@ func main() {
 	commands.Register("follow", middlewareLoggedIn(cmds.HandleFollowFeed))
 	commands.Register("following", middlewareLoggedIn(cmds.HandleFollowing))
 	commands.Register("unfollow", middlewareLoggedIn(cmds.HandleUnfollow))
+	commands.Register("browse", middlewareLoggedIn(cmds.HandleBrowse))
 
 	//* Run Commands
 	if len(os.Args) == 1 {

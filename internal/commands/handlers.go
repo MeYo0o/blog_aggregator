@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/MeYo0o/blog_aggregator/internal/config"
@@ -142,7 +144,9 @@ func HandleAgg(s *st.State, cmd Command) error {
 
 		for ; ; <-ticker.C {
 			if err = scrapeFeeds(s); err != nil {
-				return fmt.Errorf("couldn't scrape feeds: %w", err)
+				// log and continue instead of exiting the loop on malformed/non-RSS responses
+				fmt.Println(err)
+				continue
 			}
 		}
 
@@ -150,7 +154,6 @@ func HandleAgg(s *st.State, cmd Command) error {
 		return errors.New(defaultErrorStr)
 	}
 
-	return nil
 }
 
 func scrapeFeeds(s *st.State) error {
@@ -162,7 +165,13 @@ func scrapeFeeds(s *st.State) error {
 		return fmt.Errorf("couldn't get the next feed to fetch: %w", err)
 	}
 
-	// mark it as fetched
+	// fetch the feed via URL
+	rssFeed, err = rss.FetchFeed(context.Background(), feed.Url)
+	if err != nil {
+		return fmt.Errorf("error when fetching RSS: %w", err)
+	}
+
+	// mark it as fetched only after a successful fetch
 	if err = s.DB.MarkFeedFetched(context.Background(), database.MarkFeedFetchedParams{
 		LastFetchedAt: sql.NullTime{Time: time.Now(), Valid: true},
 		UpdatedAt:     time.Now(),
@@ -171,18 +180,52 @@ func scrapeFeeds(s *st.State) error {
 		return fmt.Errorf("couldn't mark the feed as fetched: %w", err)
 	}
 
-	// fetch the feed via URL
-	rssFeed, err = rss.FetchFeed(context.Background(), feed.Url)
-	if err != nil {
-		return fmt.Errorf("error when fetching RSS: %w", err)
-	}
-
 	// print feed titles
-	for _, feed := range rssFeed.Channel.Item {
-		fmt.Println(feed.Title)
+	for _, rssFeedItem := range rssFeed.Channel.Item {
+		publishedAtParsed, err := parseRSSDate(rssFeedItem.PubDate)
+		if err != nil {
+			return fmt.Errorf("couldn't parse the pubDate of the feed to be stored: %w", err)
+		}
+
+		// store the feed items as posts
+		_, err = s.DB.CreatePost(context.Background(), database.CreatePostParams{
+			ID:          uuid.New(),
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+			Title:       rssFeedItem.Title,
+			FeedID:      feed.ID,
+			Url:         rssFeedItem.Link,
+			Description: rssFeedItem.Description,
+			PublishedAt: publishedAtParsed,
+		})
+		if err != nil {
+			// it's normal to have duplicate received posts from feed.
+			// we will just ignore this error type as it's safe, we didn't store it duplicated anyways.
+			if strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
+				return nil
+			}
+			return fmt.Errorf("couldn't store post: %w", err)
+		}
 	}
 
 	return nil
+}
+
+// parseRSSDate attempts multiple common RSS/Atom date formats.
+func parseRSSDate(value string) (time.Time, error) {
+	layouts := []string{
+		time.RFC1123Z, // "Mon, 02 Jan 2006 15:04:05 -0700"
+		time.RFC1123,  // "Mon, 02 Jan 2006 15:04:05 MST"
+		time.RFC822Z,  // "02 Jan 06 15:04 -0700"
+		time.RFC822,   // "02 Jan 06 15:04 MST"
+		time.RFC3339,  // "2006-01-02T15:04:05Z07:00"
+	}
+	for _, layout := range layouts {
+		if t, err := time.Parse(layout, value); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("unsupported time format: %q", value)
 }
 
 func HandleAddFeed(s *st.State, cmd Command, user database.User) error {
@@ -366,10 +409,49 @@ func HandleUnfollow(s *st.State, cmd Command, user database.User) error {
 		}
 
 	default:
-		return errors.New("you don't need any arguments, just the following command will do")
+		return errors.New("you need to pass feedURl to unfollow")
 	}
 
 	fmt.Printf("Feed Url: %s has been unfollowed!\n", feedUrl)
+
+	return nil
+}
+
+func HandleBrowse(s *st.State, cmd Command, user database.User) error {
+	var postsLimit int32 = 2
+
+	switch len(cmd.Args) {
+	case 3:
+		// Args[0] is the program name, we don't need that but it exists no matter what.
+		// Args[1] is the command name, i.e: browse
+		// Args[2] is the command name, i.e: limit [Optional]
+		parsedInt, err := strconv.Atoi(cmd.Args[2])
+		if err != nil {
+			return fmt.Errorf("couldn't parse the limit argument passed, make sure it's a number: %w", err)
+		}
+		postsLimit = int32(parsedInt)
+		fallthrough
+
+	case 2:
+		// Args[0] is the program name, we don't need that but it exists no matter what.
+		// Args[1] is the command name, i.e: browse
+		posts, err := s.DB.GetPostsForUser(context.Background(), database.GetPostsForUserParams{
+			UserID: user.ID,
+			Limit:  postsLimit,
+		})
+		if err != nil {
+			return fmt.Errorf("couldn't get Posts for User: %w", err)
+		}
+
+		fmt.Println("posts:", len(posts))
+
+		for _, post := range posts {
+			fmt.Println(post)
+		}
+
+	default:
+		return errors.New("you can only pass an *optional* posts limit")
+	}
 
 	return nil
 }

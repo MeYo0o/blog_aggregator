@@ -7,6 +7,8 @@ import (
 	"html"
 	"io"
 	"net/http"
+	"strings"
+	"time"
 )
 
 func FetchFeed(ctx context.Context, feedURL string) (*RSSFeed, error) {
@@ -17,14 +19,24 @@ func FetchFeed(ctx context.Context, feedURL string) (*RSSFeed, error) {
 
 	req.Header.Set("User-Agent", "gator")
 
-	client := &http.Client{}
+	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't GET the url: %w", err)
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	contentType := resp.Header.Get("Content-Type")
+	if contentType != "" && !strings.Contains(strings.ToLower(contentType), "xml") {
+		return nil, fmt.Errorf("unexpected content type: %s", contentType)
+	}
+
+	limited := io.LimitReader(resp.Body, 5*1024*1024)
+	body, err := io.ReadAll(limited)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't Read the response body: %w", err)
 	}
