@@ -137,15 +137,8 @@ func HandleAgg(s *st.State, cmd Command) error {
 
 	return nil
 }
-func HandleAddFeed(s *st.State, cmd Command) error {
+func HandleAddFeed(s *st.State, cmd Command, user database.User) error {
 	var feedName, feedUrl string
-	var err error
-
-	// get the logged in user data
-	user, err := s.DB.GetUser(context.Background(), s.Cfg.CurrentUsername)
-	if err != nil {
-		return fmt.Errorf("couldn't retrieve user data: %w", err)
-	}
 
 	switch len(cmd.Args) {
 	case 4:
@@ -220,14 +213,8 @@ func HandleGetFeeds(s *st.State, cmd Command) error {
 	return nil
 }
 
-func HandleFollowFeed(s *st.State, cmd Command) error {
+func HandleFollowFeed(s *st.State, cmd Command, user database.User) error {
 	var feedsFollow []database.FeedFollow
-	var err error
-
-	currentUser, err := s.DB.GetUser(context.Background(), s.Cfg.CurrentUsername)
-	if err != nil {
-		return fmt.Errorf("couldn't retrieve user data: %w", err)
-	}
 
 	switch len(cmd.Args) {
 	case 3:
@@ -245,7 +232,7 @@ func HandleFollowFeed(s *st.State, cmd Command) error {
 			ID:        uuid.New(),
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
-			UserID:    currentUser.ID,
+			UserID:    user.ID,
 			FeedID:    currentFeed.ID,
 		})
 		if err != nil {
@@ -273,20 +260,15 @@ func HandleFollowFeed(s *st.State, cmd Command) error {
 	return nil
 }
 
-func HandleFollowing(s *st.State, cmd Command) error {
+func HandleFollowing(s *st.State, cmd Command, user database.User) error {
 	var feedsFollow []database.FeedFollow
 	var err error
-
-	currentUser, err := s.DB.GetUser(context.Background(), s.Cfg.CurrentUsername)
-	if err != nil {
-		return fmt.Errorf("couldn't retrieve user data: %w", err)
-	}
 
 	switch len(cmd.Args) {
 	case 2:
 		// Args[0] is the program name, we don't need that but it exists no matter what.
 		// Args[1] is the command name, i.e: following
-		feedsFollow, err = s.DB.GetFeedFollowsForUser(context.Background(), currentUser.ID)
+		feedsFollow, err = s.DB.GetFeedFollowsForUser(context.Background(), user.ID)
 		if err != nil {
 			return fmt.Errorf("couldn't get feed follows for the current user: %w", err)
 		}
@@ -308,6 +290,38 @@ func HandleFollowing(s *st.State, cmd Command) error {
 		fmt.Println(user.Name)
 		fmt.Println(feed.Name)
 	}
+
+	return nil
+}
+
+func HandleUnfollow(s *st.State, cmd Command, user database.User) error {
+	var feedUrl string
+
+	switch len(cmd.Args) {
+	case 3:
+		// Args[0] is the program name, we don't need that but it exists no matter what.
+		// Args[1] is the command name, i.e: unfollow
+		// Args[2] is the command name, i.e: feedUrl
+		feedUrl := cmd.Args[2]
+		// get the feed
+		feed, err := s.DB.GetFeedByUrl(context.Background(), feedUrl)
+		if err != nil {
+			return fmt.Errorf("couldn't get the feed with the provided url:%s error:%w", feedUrl, err)
+		}
+
+		err = s.DB.DeleteFeedFollowForUser(context.Background(), database.DeleteFeedFollowForUserParams{
+			UserID: user.ID,
+			FeedID: feed.ID,
+		})
+		if err != nil {
+			return fmt.Errorf("couldn't unfollow the feed with the provided url:%s error:%w", feedUrl, err)
+		}
+
+	default:
+		return errors.New("you don't need any arguments, just the following command will do")
+	}
+
+	fmt.Printf("Feed Url: %s has been unfollowed!\n", feedUrl)
 
 	return nil
 }
