@@ -86,7 +86,7 @@ func HandleResetUsers(s *st.State, cmd Command) error {
 	return nil
 }
 
-func HandleUsers(s *st.State, cmd Command) error {
+func HandleGetUsers(s *st.State, cmd Command) error {
 	var users []database.User
 	var err error
 
@@ -130,10 +130,45 @@ func HandleAge(s *st.State, cmd Command) error {
 		}
 
 	default:
-		return errors.New("you don't need any arguments, just the age command will do")
+		return errors.New("you don't need any arguments, just the agg command will do")
 	}
 
 	fmt.Println(rssFeed)
+
+	return nil
+}
+func HandleAddFeed(s *st.State, cmd Command) error {
+	var feedName, feedUrl string
+	var err error
+
+	// get the logged in user data
+	user, err := s.DB.GetUser(context.Background(), s.Cfg.CurrentUsername)
+	if err != nil {
+		return fmt.Errorf("couldn't retrieve user data: %w", err)
+	}
+
+	switch len(cmd.Args) {
+	case 4:
+		// Args[0] is the program name, we don't need that but it exists no matter what.
+		// Args[1] is the command name, i.e: addfeed
+		// Args[2] is the command name, i.e: Feed Name
+		// Args[3] is the command name, i.e: Feed Url
+		feedName = cmd.Args[2]
+		feedUrl = cmd.Args[3]
+
+		// add the feed mapped to the user
+		s.DB.CreateFeed(context.Background(), database.CreateFeedParams{
+			ID:        uuid.New(),
+			Name:      feedName,
+			Url:       feedUrl,
+			UserID:    user.ID,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		})
+
+	default:
+		return errors.New("you need to provide 2 more arguments: feedName & feedUrl")
+	}
 
 	return nil
 }
