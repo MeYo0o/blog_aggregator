@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"time"
@@ -116,27 +117,74 @@ func HandleGetUsers(s *st.State, cmd Command) error {
 }
 
 func HandleAgg(s *st.State, cmd Command) error {
-	var rssFeed *rss.RSSFeed
-	var err error
+
+	defaultErrorStr := fmt.Sprintln(`you need to pass time_between_reqs argument:
+		s: seconds	-	Example: 10s => 10 seconds
+		m: minutes	-	Example: 5m => 5 minutes
+		h: hours	-	Example: 1h => 1 hour
+		`)
 
 	switch len(cmd.Args) {
-	case 2:
+	case 3:
 		// Args[0] is the program name, we don't need that but it exists no matter what.
 		// Args[1] is the command name, i.e: agg
-		url := "https://www.wagslane.dev/index.xml"
-		rssFeed, err = rss.FetchFeed(context.Background(), url)
+		// Args[2] is the command name, i.e: time_between_reqs
+		timeBetweenReqsStr := cmd.Args[2]
+		timeBetweenReqs, err := time.ParseDuration(timeBetweenReqsStr)
 		if err != nil {
-			return fmt.Errorf("error when fetching RSS: %w", err)
+			return errors.New(defaultErrorStr)
+		}
+
+		ticker := time.NewTicker(timeBetweenReqs)
+		defer ticker.Stop()
+
+		fmt.Println("Collecting feeds every", timeBetweenReqs)
+
+		for ; ; <-ticker.C {
+			if err = scrapeFeeds(s); err != nil {
+				return fmt.Errorf("couldn't scrape feeds: %w", err)
+			}
 		}
 
 	default:
-		return errors.New("you don't need any arguments, just the agg command will do")
+		return errors.New(defaultErrorStr)
 	}
-
-	fmt.Println(rssFeed)
 
 	return nil
 }
+
+func scrapeFeeds(s *st.State) error {
+	var rssFeed *rss.RSSFeed
+
+	// get the next feed to fetch
+	feed, err := s.DB.GetNextFeedToFetch(context.Background())
+	if err != nil {
+		return fmt.Errorf("couldn't get the next feed to fetch: %w", err)
+	}
+
+	// mark it as fetched
+	if err = s.DB.MarkFeedFetched(context.Background(), database.MarkFeedFetchedParams{
+		LastFetchedAt: sql.NullTime{Time: time.Now(), Valid: true},
+		UpdatedAt:     time.Now(),
+		ID:            feed.ID,
+	}); err != nil {
+		return fmt.Errorf("couldn't mark the feed as fetched: %w", err)
+	}
+
+	// fetch the feed via URL
+	rssFeed, err = rss.FetchFeed(context.Background(), feed.Url)
+	if err != nil {
+		return fmt.Errorf("error when fetching RSS: %w", err)
+	}
+
+	// print feed titles
+	for _, feed := range rssFeed.Channel.Item {
+		fmt.Println(feed.Title)
+	}
+
+	return nil
+}
+
 func HandleAddFeed(s *st.State, cmd Command, user database.User) error {
 	var feedName, feedUrl string
 
